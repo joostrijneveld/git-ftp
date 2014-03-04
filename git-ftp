@@ -202,7 +202,16 @@ has() {
 }
 
 cache_git_submodules() {
-	GIT_SUBMODULES=$(git submodule | awk '{print $2}')
+	GIT_SUBMODULES=$(git submodule 2> /dev/null | awk '{print $2}')
+}
+
+init_repo() {
+	git init
+}
+
+commit_clone() {
+	git add --all
+	git commit -m "Initial commit after cloning from remote"
 }
 
 is_submodule() {
@@ -608,6 +617,10 @@ set_changed_files() {
 	fi
 }
 
+clone_files() {
+	echo "Downloading not yet implemented."
+}
+
 handle_file_sync() {
 	# Calculate total file count
 	local DONE_ITEMS=0
@@ -735,6 +748,9 @@ handle_action() {
 			;;
 		catchup)
 			action_catchup
+			;;
+		clone)
+			action_clone
 			;;
 		show)
 			action_show
@@ -899,6 +915,18 @@ action_push() {
 	release_remote_lock
 }
 
+action_clone() {
+	check_git_version
+	check_empty_dir
+	init_repo
+	set_remotes
+	remote_lock
+	clone_files
+	release_remote_lock
+	commit_clone
+	echo "Recommendation: submit the initial SHA1 to the remote using 'git ftp catchup'"
+}
+
 action_catchup() {
 	check_is_git_project
 	check_is_dirty_repository
@@ -972,6 +1000,10 @@ check_is_git_project() {
 	cd "$git_project_dir"
 }
 
+check_empty_dir() {
+	[ "$(ls -A)" ] && print_error_and_die "Can only ftp-clone when in empty directories" $ERROR_GIT
+}
+
 check_is_dirty_repository() {
 	[ $(git status -uno --porcelain | wc -l) -ne 0 ] && print_error_and_die "Dirty repository: Having uncommitted changes. Exiting..." $ERROR_GIT
 }
@@ -994,7 +1026,7 @@ fi
 while test $# != 0
 do
 	case "$1" in
-		init|push|catchup|show|add-scope|remove-scope|log)
+		init|push|clone|catchup|show|add-scope|remove-scope|log)
 			ACTION="$1"
 			# catch scope
 			if [ "$1" == "add-scope" ] || [ "$1" == "remove-scope" ]; then
